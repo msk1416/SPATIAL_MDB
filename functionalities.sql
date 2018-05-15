@@ -26,15 +26,15 @@ EXECUTE INSERTNEWSTATION('Palau reial', 'L3', 2, 7);
 
 
 CREATE OR REPLACE PROCEDURE INSERTNEWAREA (
-  A_NAME area.NAME%TYPE,
-  A_CITY area.city%TYPE,
+  A_NAME AREAS.NAME%TYPE,
+  A_CITY AREAS.city%TYPE,
   fp_X NUMBER,
   FP_Y NUMBER,
   SP_X NUMBER,
   SP_Y NUMBER
   ) IS
 BEGIN
-  INSERT INTO AREA VALUES (
+  INSERT INTO AREAS VALUES (
     A_NAME,
     a_city,
     SDO_GEOMETRY(2003, NULL, NULL, SDO_ELEM_INFO_ARRAY(1,1003,3), SDO_ORDINATE_ARRAY(FP_X,FP_Y, SP_X,SP_Y))
@@ -49,14 +49,14 @@ END;
 execute INSERTNEWAREA('La mina', 'Sant Adrià del Besòs', 22, 0, 27, 3);
 
 CREATE OR REPLACE PROCEDURE INSERTNEWROUNDAREA (
-  A_NAME area.NAME%TYPE,
-  A_CITY AREA.CITY%TYPE,
+  A_NAME AREAS.NAME%TYPE,
+  A_CITY AREAS.CITY%TYPE,
   a_X NUMBER,
   A_Y NUMBER,
   a_radius number
   ) IS
 BEGIN
-  INSERT INTO AREA VALUES (
+  INSERT INTO AREAS VALUES (
     A_NAME,
     A_CITY,
     SDO_GEOMETRY (2003, NULL, NULL, sdo_elem_info_array(1, 1003, 4), SDO_ORDINATE_ARRAY (a_X-a_RADIUS, a_Y, a_x, a_y+a_radius, a_x+a_radius, a_y))
@@ -92,13 +92,13 @@ execute findstationsbyarealoc(0,0 , 20,20);
 
 
 CREATE OR REPLACE PROCEDURE FINDSTATIONSBYAREANAME (
-  A_NAME AREA.NAME%TYPE,
-  a_city area.city%type
+  A_NAME AREAS.NAME%TYPE,
+  a_city AREAS.city%type
   ) IS
 
-  area_loc area.a_loc%type;
+  area_loc AREAS.a_loc%type;
 BEGIN
-  select a_loc into area_loc from area where name = a_name and city = a_city;
+  select a_loc into area_loc from AREAS where name = a_name and city = a_city;
   FOR STATION IN (
     SELECT S.NAME as name, S.LINE_ID as line, S.S_LOC as location
     FROM STATIONS S
@@ -136,3 +136,58 @@ EXECUTE MYCLOSESTSTATIONS(3, 4, 1000);
 EXECUTE MYCLOSESTSTATIONS(11, 7, 700);
 
 
+CREATE OR REPLACE PROCEDURE VALIDATEGEOMETRIES IS
+COUNTVALID NUMBER := 0;
+COUNTTOTAL NUMBER := 0;
+isgeovalid varchar2(4000);
+BEGIN
+  FOR G IN (SELECT name as name, city as city, A_LOC AS SHAPE FROM AREAS) 
+    LOOP 
+      COUNTTOTAL := COUNTTOTAL + 1;
+      IF (SDO_GEOM.VALIDATE_GEOMETRY_WITH_CONTEXT(G.SHAPE, 0.005) = 'TRUE') THEN
+        COUNTVALID := COUNTVALID + 1;
+      end if;
+    END LOOP;
+  FOR G IN (SELECT name as name, line_id as line, S_LOC AS SHAPE from STATIONS)
+    LOOP
+      counttotal := counttotal + 1;
+      IF(SDO_GEOM.VALIDATE_GEOMETRY_WITH_CONTEXT(G.SHAPE, 0.005) = 'TRUE') THEN
+        COUNTVALID := COUNTVALID + 1;
+      end if;
+    END LOOP;
+  IF (COUNTVALID <> COUNTTOTAL) THEN
+    DBMS_OUTPUT.PUT_LINE('There are ' || (counttotal - countvalid) || ' invalid geometries in the database. Total count is ' || counttotal);
+  ELSE
+    DBMS_OUTPUT.PUT_LINE('All geometries in the database are valid.');
+  END IF;
+END;
+
+EXECUTE CREATEINVALIDGEOMETRIES(15);
+EXECUTE VALIDATEGEOMETRIES;
+EXECUTE CLEANINVALIDGEOMETRIES;
+
+CREATE OR REPLACE PROCEDURE CREATEINVALIDGEOMETRIES (
+  N NUMBER
+  ) IS
+    COUNT NUMBER;
+    NAME_TEMPLATE VARCHAR2(12) := 'invalidgeo_';
+    RAND INTEGER;
+    max_val integer := 2147483648;
+  BEGIN
+    RAND := ROUND(DBMS_RANDOM.VALUE() * MAX_VAL - N - 1) + 1;
+    FOR I IN rand..rand+N-1 LOOP
+      INSERT INTO AREAS VALUES(
+        name_template || i, 
+        name_template || i, 
+        MDSYS.SDO_GEOMETRY(2003, NULL, NULL, 
+          MDSYS.SDO_ELEM_INFO_ARRAY(1,1003,1), 
+          MDSYS.SDO_ORDINATE_ARRAY(10,10, 15,20, 20,10, 20,15, 15,10, 10,10, 0,0)
+        )
+      );
+    end loop;
+  END;
+CREATE OR REPLACE PROCEDURE CLEANINVALIDGEOMETRIES IS
+  NAME_TEMPLATE VARCHAR2(12) := 'invalidgeo_';
+  BEGIN
+    delete from AREAS where name like name_template||'%';
+  end;
