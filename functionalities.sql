@@ -9,7 +9,7 @@ BEGIN
   INSERT INTO STATIONS VALUES (
     S_NAME,
     S_LINEID,
-    MDSYS.SDO_GEOMETRY(2001, NULL, MDSYS.SDO_POINT_TYPE(S_X,S_Y,NULL), NULL, NULL)
+    MDSYS.SDO_GEOMETRY(2001, 8307, MDSYS.SDO_POINT_TYPE(COORD(S_X), COORD(S_Y),NULL), NULL, NULL)
   );
   
   EXCEPTION 
@@ -23,6 +23,7 @@ EXECUTE INSERTNEWSTATION('Sagrada Família', 'L5', 14, 8);
 EXECUTE INSERTNEWSTATION('Sagrada Família', 'L2', 14, 8);
 EXECUTE INSERTNEWSTATION('Camp Nou', 'L3', 2, 5);
 EXECUTE INSERTNEWSTATION('Palau reial', 'L3', 2, 7);
+EXECUTE INSERTNEWSTATION('Zona universitària', 'L3', 1, 7);
 
 
 CREATE OR REPLACE PROCEDURE INSERTNEWAREA (
@@ -36,8 +37,8 @@ CREATE OR REPLACE PROCEDURE INSERTNEWAREA (
 BEGIN
   INSERT INTO AREAS VALUES (
     A_NAME,
-    a_city,
-    SDO_GEOMETRY(2003, NULL, NULL, SDO_ELEM_INFO_ARRAY(1,1003,3), SDO_ORDINATE_ARRAY(FP_X,FP_Y, SP_X,SP_Y))
+    A_CITY,
+    SDO_GEOMETRY(2003, 8307, NULL, SDO_ELEM_INFO_ARRAY(1,1003,3), SDO_ORDINATE_ARRAY(COORD(FP_X), COORD(FP_Y), COORD(SP_X), COORD(SP_Y)))
   );
   
   EXCEPTION 
@@ -48,27 +49,6 @@ END;
 
 execute INSERTNEWAREA('La mina', 'Sant Adrià del Besòs', 22, 0, 27, 3);
 
-CREATE OR REPLACE PROCEDURE INSERTNEWROUNDAREA (
-  A_NAME AREAS.NAME%TYPE,
-  A_CITY AREAS.CITY%TYPE,
-  a_X NUMBER,
-  A_Y NUMBER,
-  a_radius number
-  ) IS
-BEGIN
-  INSERT INTO AREAS VALUES (
-    A_NAME,
-    A_CITY,
-    SDO_GEOMETRY (2003, NULL, NULL, sdo_elem_info_array(1, 1003, 4), SDO_ORDINATE_ARRAY (a_X-a_RADIUS, a_Y, a_x, a_y+a_radius, a_x+a_radius, a_y))
-  );
-  
-  EXCEPTION 
-  WHEN DUP_VAL_ON_INDEX THEN
-    DBMS_OUTPUT.PUT_LINE('There is already an area in this city with the same name.');
-
-END;
-
-execute INSERTNEWroundAREA('Sant Martí', 'Barcelona', 23, 4, 3);
 
 CREATE OR REPLACE PROCEDURE FINDSTATIONSBYAREALOC (
   fp_X NUMBER,
@@ -81,14 +61,14 @@ BEGIN
     SELECT S.NAME as name, S.LINE_ID as line, S.S_LOC as location
     FROM STATIONS S
     WHERE SDO_INSIDE(S.S_LOC,
-              SDO_GEOMETRY(2003, NULL, NULL, SDO_ELEM_INFO_ARRAY(1,1003,3), SDO_ORDINATE_ARRAY(FP_X,FP_Y, SP_X,SP_Y))
+              SDO_GEOMETRY(2003, 8307, NULL, SDO_ELEM_INFO_ARRAY(1,1003,3), SDO_ORDINATE_ARRAY(COORD(FP_X), COORD(FP_Y), COORD(SP_X), COORD(SP_Y)))
             ) = 'TRUE' order by line_id asc) 
   LOOP
     DBMS_OUTPUT.PUT_LINE(station.name || ' (' || station.line ||')');
   END LOOP;
 END;
 
-execute findstationsbyarealoc(0,0 , 20,20);
+execute findstationsbyarealoc(0,0 , 9,6);
 
 
 CREATE OR REPLACE PROCEDURE FINDSTATIONSBYAREANAME (
@@ -98,7 +78,9 @@ CREATE OR REPLACE PROCEDURE FINDSTATIONSBYAREANAME (
 
   area_loc AREAS.a_loc%type;
 BEGIN
-  select a_loc into area_loc from AREAS where name = a_name and city = a_city;
+  SELECT A_LOC INTO AREA_LOC FROM AREAS WHERE NAME = A_NAME AND CITY = A_CITY;
+  DBMS_OUTPUT.PUT_LINE('Stations in '|| A_NAME || ' ('|| A_CITY || ')');
+  dbms_output.put_line('------------------------------------------------');
   FOR STATION IN (
     SELECT S.NAME as name, S.LINE_ID as line, S.S_LOC as location
     FROM STATIONS S
@@ -112,7 +94,8 @@ BEGIN
       dbms_output.put_line('There is no area with this name in this city.');
 END;
 
-execute FINDSTATIONSBYAREANAME('Eixample', 'Barcelona');
+EXECUTE FINDSTATIONSBYAREANAME('Eixample', 'Barcelona');
+execute FINDSTATIONSBYAREANAME('Pedralbes', 'Barcelona');
 
 CREATE OR REPLACE PROCEDURE MYCLOSESTSTATIONS(
   MY_X NUMBER,
@@ -121,19 +104,19 @@ CREATE OR REPLACE PROCEDURE MYCLOSESTSTATIONS(
   ) IS
     MY_LOC SDO_GEOMETRY;
   BEGIN
-    MY_LOC := MDSYS.SDO_GEOMETRY(2001, NULL, MDSYS.SDO_POINT_TYPE(MY_X,MY_Y,NULL), NULL, NULL);
+    MY_LOC := MDSYS.SDO_GEOMETRY(2001, 8307, MDSYS.SDO_POINT_TYPE(COORD(MY_X), COORD(MY_Y),NULL), NULL, NULL);
     FOR CS IN (
-      SELECT * FROM (SELECT S.NAME AS NAME, S.LINE_ID AS LINE, SDO_GEOM.SDO_DISTANCE(MY_LOC, S.S_LOC, 0.005) * 100 AS DIST
+      SELECT * FROM (SELECT S.NAME AS NAME, S.LINE_ID AS LINE, SDO_GEOM.SDO_DISTANCE(MY_LOC, S.S_LOC, 0.005)  AS DIST
       FROM STATIONS S) where dist <= MAX_DIST
     ) LOOP
-        dbms_output.put_line(cs.name || ' (' || cs.line || '): ' || round(cs.dist, 1) || ' m');
+        dbms_output.put_line(cs.name || ' (' || cs.line || '): ' || round(cs.dist/1000, 2) || ' km');
       end loop;
   END;
   
 /* -- usage -- */
 /* params: my x coord, my y coord, max distance in meters */
-EXECUTE MYCLOSESTSTATIONS(3, 4, 1000);
-EXECUTE MYCLOSESTSTATIONS(11, 7, 700);
+EXECUTE MYCLOSESTSTATIONS(11, 7, 5000);
+EXECUTE MYCLOSESTSTATIONS(2, 7, 2500);
 
 
 CREATE OR REPLACE PROCEDURE VALIDATEGEOMETRIES IS
@@ -178,16 +161,37 @@ CREATE OR REPLACE PROCEDURE CREATEINVALIDGEOMETRIES (
     FOR I IN rand..rand+N-1 LOOP
       INSERT INTO AREAS VALUES(
         name_template || i, 
-        name_template || i, 
-        MDSYS.SDO_GEOMETRY(2003, NULL, NULL, 
+        NAME_TEMPLATE || I, 
+        MDSYS.SDO_GEOMETRY(2003, 8307, NULL, 
           MDSYS.SDO_ELEM_INFO_ARRAY(1,1003,1), 
-          MDSYS.SDO_ORDINATE_ARRAY(10,10, 15,20, 20,10, 20,15, 15,10, 10,10, 0,0)
+          MDSYS.SDO_ORDINATE_ARRAY(COORD(10), COORD(10), COORD(15), COORD(20), COORD(20), COORD(10), COORD(20), COORD(15), COORD(15), COORD(10), COORD(10), COORD(10), COORD(0), COORD(0))
         )
       );
     end loop;
   END;
+  
 CREATE OR REPLACE PROCEDURE CLEANINVALIDGEOMETRIES IS
   NAME_TEMPLATE VARCHAR2(12) := 'invalidgeo_';
   BEGIN
     delete from AREAS where name like name_template||'%';
   end;
+  
+create or replace procedure showareasbysize is
+
+BEGIN
+  FOR r IN (SELECT A.NAME AS area_NAME, SDO_GEOM.SDO_AREA(A.A_LOC, 0.005) AS AREA_size FROM AREAS A ORDER BY AREA_size DESC)
+    LOOP
+      dbms_output.put_line(r.area_name || ' - ' || round(r.area_size / 100000, 3) || ' km2');    
+    end loop;
+end;
+
+execute showareasbysize;
+
+CREATE OR REPLACE FUNCTION COORD (
+  C NUMBER
+) RETURN float
+  is
+BEGIN
+RETURN round(C / 110.495204536789, 8);
+END;
+
