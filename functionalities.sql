@@ -25,6 +25,9 @@ EXECUTE INSERTNEWSTATION('Camp Nou', 'L3', 2, 5);
 EXECUTE INSERTNEWSTATION('Palau reial', 'L3', 2, 7);
 EXECUTE INSERTNEWSTATION('Zona universitària', 'L3', 1, 7);
 
+EXECUTE INSERTNEWSTATION('Maria Cristina', 'L3', 1, 9);
+EXECUTE INSERTNEWSTATION('Illa Diagonal', 'L3', 1, 8);
+
 
 CREATE OR REPLACE PROCEDURE INSERTNEWAREA (
   A_NAME AREAS.NAME%TYPE,
@@ -47,7 +50,11 @@ BEGIN
 
 END;
 
-execute INSERTNEWAREA('La mina', 'Sant Adrià del Besòs', 22, 0, 27, 3);
+EXECUTE INSERTNEWAREA('La mina', 'Sant Adrià del Besòs', 22, 0, 27, 3);
+EXECUTE INSERTNEWAREA('Sant Roc', 'Badalona', 20, 5, 23, 10);
+
+EXECUTE INSERTNEWAREA('Barceloneta', 'Sant Adrià del Besòs', 10, 0, 12, 3);
+
 
 
 CREATE OR REPLACE PROCEDURE FINDSTATIONSBYAREALOC (
